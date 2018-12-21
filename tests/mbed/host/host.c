@@ -11,6 +11,8 @@
 #include <unistd.h>
 #include "mbed_u.h"
 
+#define CMAKE_CURRENT_BINARY_DIR @CMAKE_CURRENT_BINARY_DIR@
+
 char* find_data_file(char* str, size_t size)
 {
     char* tail = ".data";
@@ -39,19 +41,7 @@ void datafileloc(char* data_file_name, char* path)
     char* tail = "3rdparty/mbedtls/mbedtls/tests/suites/";
     char* seperator;
 
-    if (getcwd(path, 1024) != NULL)
-        fprintf(stdout, "Current working dir: %s\n", path);
-    else
-        perror("getcwd() error");
-    seperator = strstr(
-        path, "build"); /* Find address at which string to be separated */
-    if (seperator == NULL)
-    {
-        printf("\n seperator doesn't get the address\n");
-    }
-
-    *seperator = '\0'; /* separating string */
-    strcat(path, tail);
+    strcat(CMAKE_CURRENT_BINARY_DIR, tail);
     strcat(path, data_file_name);
 
     printf("######## data_fileloc: %s ###### \n", path);
