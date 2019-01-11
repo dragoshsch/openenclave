@@ -1,7 +1,7 @@
 // oetools-image:tag  Docker image from OE Jenkins Registry
 OETOOLS_REPO = "https://oejenkinscidockerregistry.azurecr.io"
 OETOOLS_REPO_CREDENTIAL_ID = "oejenkinscidockerregistry"
-OETOOLS_IMAGE = "oetools-azure:1.10"
+OETOOLS_IMAGE = "oetools-azure:1.9"
 
 
 def PowerShellWrapper(psCmd) {
@@ -16,7 +16,25 @@ def ACCTest(String label, String compiler, String unit, String suite) {
             checkout scm
 
             timeout(15) {
-                sh "./scripts/test-build-config -p $unit -b $suite --compiler=$compiler --disable_sim"
+                dir('build') {
+                    sh """
+                    if [ "${compiler}" == "gcc" ]; then
+                        export CC="gcc"
+                        export CXX="g++"
+                    elif [ "${compiler}" == "clang-7" ]; then
+                        export CC="clang-7"
+                        export CXX="clang++-7"
+                    fi
+
+                    if [ "${unit}" == "SGX1FLC" ]; then
+                        cmake .. -DCMAKE_BUILD_TYPE=${suite} -DUSE_LIBSGX=1
+                    else
+                        cmake .. -DCMAKE_BUILD_TYPE=${suite} 
+                    fi
+                    make
+                    ctest --output-on-failure
+                    """
+                }
             }
 
         }
@@ -32,7 +50,25 @@ def simulationTest(String compiler, String unit, String suite ) {
             docker.withRegistry(OETOOLS_REPO, OETOOLS_REPO_CREDENTIAL_ID) {
                 docker.image(OETOOLS_IMAGE).inside {
                     timeout(15) {
-                        sh "./scripts/test-build-config -p $unit -b $suite --compiler=$compiler"
+                        dir('build') {
+                            sh """
+                            if [ "${compiler}" == "gcc" ]; then
+                                export CC="gcc"
+                                export CXX="g++"
+                            elif [ "${compiler}" == "clang-7" ]; then
+                                export CC="clang-7"
+                                export CXX="clang++-7"
+                            fi
+
+                            if [ "${unit}" == "SGX1FLC" ]; then
+                                cmake .. -DCMAKE_BUILD_TYPE=${suite} -DUSE_LIBSGX=1
+                            else
+                                cmake .. -DCMAKE_BUILD_TYPE=${suite} 
+                            fi
+                            make
+                            OE_SIMULATION=1 ctest --output-on-failure
+                            """
+                        }
                     }
                 }
             }
@@ -49,7 +85,16 @@ def ACCContainerTest(String label) {
             docker.withRegistry(OETOOLS_REPO, OETOOLS_REPO_CREDENTIAL_ID) {
                 docker.image(OETOOLS_IMAGE).inside('--privileged -v /dev/sgx:/dev/sgx') {
                     timeout(15) {
-                        sh './scripts/test-build-config -p SGX1FLC -b RelWithDebInfo --disable_sim'
+                        dir('build') {
+                            sh """
+                            export CC="clang-7"
+                            export CXX="clang++-7"
+
+                            cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_LIBSGX=1
+                            make
+                            ctest --output-on-failure
+                            """
+                        }
                     }
                 }
             }
@@ -112,7 +157,16 @@ def win2016DebugCrossPlatform() {
             docker.withRegistry(OETOOLS_REPO, OETOOLS_REPO_CREDENTIAL_ID) {
                 docker.image(OETOOLS_IMAGE).inside {
                     timeout(15) {
-                        sh './scripts/test-build-config -p SGX1FLC -b Debug --compiler=clang-7'
+                        dir('build') {
+                            sh """
+                            export CC="clang-7"
+                            export CXX="clang++-7"
+
+                            cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_LIBSGX=1
+                            make
+                            OE_SIMULATION=1 ctest --output-on-failure
+                            """
+                        }
                         stash includes: 'build/tests/**', name: 'linuxdebug'
                     }
                 }
@@ -138,7 +192,16 @@ def win2016ReleaseCrossPlatform() {
             docker.withRegistry(OETOOLS_REPO, OETOOLS_REPO_CREDENTIAL_ID) {
                 docker.image(OETOOLS_IMAGE).inside {
                     timeout(15) {
-                        sh './scripts/test-build-config -p SGX1FLC -b Release --compiler=clang-7'
+                        dir('build') {
+                            sh """
+                            export CC="clang-7"
+                            export CXX="clang++-7"
+
+                            cmake .. -DCMAKE_BUILD_TYPE=Release -DUSE_LIBSGX=1
+                            make
+                            OE_SIMULATION=1 ctest --output-on-failure
+                            """
+                        }
                         stash includes: 'build/tests/**', name: 'linuxrelease'
                     }
                 }
