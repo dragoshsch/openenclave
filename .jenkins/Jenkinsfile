@@ -10,6 +10,8 @@ def PowerShellWrapper(psCmd) {
 }
 
 def ACCTest(String label, String compiler, String unit, String suite) {
+    def c_compiler
+    def cpp_compiler
     stage("$label $compiler $unit $suite") {
         node("$label") {
             cleanWs()
@@ -17,23 +19,20 @@ def ACCTest(String label, String compiler, String unit, String suite) {
 
             timeout(15) {
                 dir('build') {
-                    sh """
-                    if [ "${compiler}" == "gcc" ]; then
-                        export CC="gcc"
-                        export CXX="g++"
-                    elif [ "${compiler}" == "clang-7" ]; then
-                        export CC="clang-7"
-                        export CXX="clang++-7"
-                    fi
-
-                    if [ "${unit}" == "SGX1FLC" ]; then
+                    if (compiler == "gcc") {
+                        c_compiler = "gcc"
+                        cpp_compiler = "g++"
+                    } else if (compiler == "clang-7") {
+                        c_compiler = "clang-7"
+                        cpp_compiler = "clang++-7"
+                    }
+                    withEnv(["CC=${c_compiler}","CXX=${cpp_compiler}"]) {
+                        sh """
                         cmake .. -DCMAKE_BUILD_TYPE=${suite} -DUSE_LIBSGX=1
-                    else
-                        cmake .. -DCMAKE_BUILD_TYPE=${suite} 
-                    fi
-                    make
-                    ctest --output-on-failure
-                    """
+                        make
+                        ctest --output-on-failure
+                        """
+                    }
                 }
             }
 
@@ -42,6 +41,8 @@ def ACCTest(String label, String compiler, String unit, String suite) {
 }
 
 def simulationTest(String compiler, String unit, String suite ) {
+    def c_compiler
+    def cpp_compiler
     stage("Sim $compiler $unit $suite") {
         node {
             cleanWs()
@@ -51,23 +52,20 @@ def simulationTest(String compiler, String unit, String suite ) {
                 docker.image(OETOOLS_IMAGE).inside {
                     timeout(15) {
                         dir('build') {
-                            sh """
-                            if [ "${compiler}" == "gcc" ]; then
-                                export CC="gcc"
-                                export CXX="g++"
-                            elif [ "${compiler}" == "clang-7" ]; then
-                                export CC="clang-7"
-                                export CXX="clang++-7"
-                            fi
-
-                            if [ "${unit}" == "SGX1FLC" ]; then
-                                cmake .. -DCMAKE_BUILD_TYPE=${suite} -DUSE_LIBSGX=1
-                            else
+                            if (compiler == "gcc") {
+                                c_compiler = "gcc"
+                                cpp_compiler = "g++"
+                            } else if (compiler == "clang-7") {
+                                c_compiler = "clang-7"
+                                cpp_compiler = "clang++-7"
+                            }
+                            withEnv(["CC=${c_compiler}","CXX=${cpp_compiler}"]) {
+                                sh """
                                 cmake .. -DCMAKE_BUILD_TYPE=${suite} 
-                            fi
-                            make
-                            OE_SIMULATION=1 ctest --output-on-failure
-                            """
+                                make
+                                OE_SIMULATION=1 ctest --output-on-failure
+                                """
+                            }
                         }
                     }
                 }
@@ -86,14 +84,13 @@ def ACCContainerTest(String label) {
                 docker.image(OETOOLS_IMAGE).inside('--privileged -v /dev/sgx:/dev/sgx') {
                     timeout(15) {
                         dir('build') {
-                            sh """
-                            export CC="clang-7"
-                            export CXX="clang++-7"
-
-                            cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_LIBSGX=1
-                            make
-                            ctest --output-on-failure
-                            """
+                            withEnv(["CC=clang-7","CXX=clang++-7"]) {
+                                sh """
+                                cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo
+                                make
+                                ctest --output-on-failure
+                                """
+                            }
                         }
                     }
                 }
@@ -158,14 +155,13 @@ def win2016DebugCrossPlatform() {
                 docker.image(OETOOLS_IMAGE).inside {
                     timeout(15) {
                         dir('build') {
-                            sh """
-                            export CC="clang-7"
-                            export CXX="clang++-7"
-
-                            cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_LIBSGX=1
-                            make
-                            OE_SIMULATION=1 ctest --output-on-failure
-                            """
+                            withEnv(["CC=clang-7","CXX=clang++-7"]) {
+                                sh """
+                                cmake .. -DCMAKE_BUILD_TYPE=Debug
+                                make
+                                OE_SIMULATION=1 ctest --output-on-failure
+                                """
+                            }
                         }
                         stash includes: 'build/tests/**', name: 'linuxdebug'
                     }
@@ -193,14 +189,13 @@ def win2016ReleaseCrossPlatform() {
                 docker.image(OETOOLS_IMAGE).inside {
                     timeout(15) {
                         dir('build') {
-                            sh """
-                            export CC="clang-7"
-                            export CXX="clang++-7"
-
-                            cmake .. -DCMAKE_BUILD_TYPE=Release -DUSE_LIBSGX=1
-                            make
-                            OE_SIMULATION=1 ctest --output-on-failure
-                            """
+                            withEnv(["CC=clang-7","CXX=clang++-7"]) {
+                                sh """
+                                cmake .. -DCMAKE_BUILD_TYPE=Release
+                                make
+                                OE_SIMULATION=1 ctest --output-on-failure
+                                """
+                            }
                         }
                         stash includes: 'build/tests/**', name: 'linuxrelease'
                     }
