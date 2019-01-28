@@ -28,7 +28,7 @@ def ACCTest(String label, String compiler, String unit, String suite) {
                     }
                     withEnv(["CC=${c_compiler}","CXX=${cpp_compiler}"]) {
                         sh """
-                        cmake .. -DCMAKE_BUILD_TYPE=${suite} -DUSE_LIBSGX=1
+                        cmake .. -DCMAKE_BUILD_TYPE=${suite}
                         make
                         ctest --output-on-failure
                         """
@@ -61,7 +61,7 @@ def simulationTest(String compiler, String unit, String suite ) {
                             }
                             withEnv(["CC=${c_compiler}","CXX=${cpp_compiler}"]) {
                                 sh """
-                                cmake .. -DCMAKE_BUILD_TYPE=${suite} 
+                                cmake .. -DCMAKE_BUILD_TYPE=${suite} -DUSE_LIBSGX=OFF
                                 make
                                 OE_SIMULATION=1 ctest --output-on-failure
                                 """
