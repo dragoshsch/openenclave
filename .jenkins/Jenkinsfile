@@ -17,7 +17,7 @@ def ACCTest(String label, String compiler, String unit, String suite) {
                     }
                     withEnv(["CC=${c_compiler}","CXX=${cpp_compiler}"]) {
                         sh """
-                        cmake .. -DCMAKE_BUILD_TYPE=${suite}
+                        cmake ${WORKSPACE} -DCMAKE_BUILD_TYPE=${suite}
                         make
                         ctest --output-on-failure
                         """
@@ -50,7 +50,7 @@ def simulationTest(String compiler, String unit, String suite ) {
                         }
                         withEnv(["CC=${c_compiler}","CXX=${cpp_compiler}","OE_SIMULATION=1"]) {
                             sh """
-                            cmake .. -DCMAKE_BUILD_TYPE=${suite} -DUSE_LIBSGX=OFF
+                            cmake ${WORKSPACE} -DCMAKE_BUILD_TYPE=${suite} -DUSE_LIBSGX=OFF
                             make
                             ctest --output-on-failure
                             """
@@ -74,7 +74,7 @@ def ACCContainerTest(String label) {
                     dir('build') {
                         withEnv(["CC=clang-7","CXX=clang++-7"]) {
                             sh """
-                            cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo
+                            cmake ${WORKSPACE} -DCMAKE_BUILD_TYPE=RelWithDebInfo
                             make
                             ctest --output-on-failure
                             """
@@ -115,7 +115,7 @@ def checkDevFlows() {
 
                     dir('build') {
                         sh '''
-                        cmake .. -DUSE_LIBSGX=OFF
+                        cmake ${WORKSPACE} -DUSE_LIBSGX=OFF
                         make
                     '''
                         // Note that `make package` is not expected to work
@@ -138,7 +138,7 @@ def win2016DebugLinuxElfBuild() {
                     dir('build') {
                         withEnv(["CC=clang-7","CXX=clang++-7"]) {
                             sh """
-                            cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_DEBUG_MALLOC=OFF
+                            cmake ${WORKSPACE} -DCMAKE_BUILD_TYPE=Debug -DUSE_DEBUG_MALLOC=OFF
                             make
                             """
                         }
@@ -155,7 +155,10 @@ def win2016DebugLinuxElfBuild() {
             unstash 'linuxdebug'
             bat 'move build linuxbin'
             dir('build') {
-                bat "vcvars64.bat x64 && cmake.exe -G \"Visual Studio 15 2017 Win64\" -DADD_WINDOWS_ENCLAVE_TESTS=1 -DCMAKE_BUILD_TYPE=Debug -DLINUX_BIN_DIR=${WORKSPACE}\\linuxbin\\tests .. && msbuild ALL_BUILD.vcxproj -p:Configuration=Debug && ctest.exe -V -C Debug"
+                bat "vcvars64.bat x64 && \
+                     cmake.exe -G \"Visual Studio 15 2017 Win64\" -DADD_WINDOWS_ENCLAVE_TESTS=1 -DCMAKE_BUILD_TYPE=Debug -DLINUX_BIN_DIR=${WORKSPACE}\\linuxbin\\tests ${WORKSPACE} && \
+                     msbuild ALL_BUILD.vcxproj -p:Configuration=Debug && \
+                     ctest.exe -V -C Debug"
             }
        }
     }
@@ -172,7 +175,7 @@ def win2016ReleaseLinuxElfBuild() {
                     dir('build') {
                         withEnv(["CC=clang-7","CXX=clang++-7"]) {
                             sh """
-                            cmake .. -DCMAKE_BUILD_TYPE=Release
+                            cmake ${WORKSPACE} -DCMAKE_BUILD_TYPE=Release
                             make
                             """
                         }
@@ -189,7 +192,10 @@ def win2016ReleaseLinuxElfBuild() {
             unstash 'linuxrelease'
             bat 'move build linuxbin'
             dir('build') {
-                bat "vcvars64.bat x64 && cmake.exe -G \"Visual Studio 15 2017 Win64\" -DADD_WINDOWS_ENCLAVE_TESTS=1 -DCMAKE_BUILD_TYPE=Release -DLINUX_BIN_DIR=${WORKSPACE}\\linuxbin\\tests .. && msbuild ALL_BUILD.vcxproj -p:Configuration=Release && ctest.exe -V -C Release"
+                bat "vcvars64.bat x64 && \
+                     cmake.exe -G \"Visual Studio 15 2017 Win64\" -DADD_WINDOWS_ENCLAVE_TESTS=1 -DCMAKE_BUILD_TYPE=Release -DLINUX_BIN_DIR=${WORKSPACE}\\linuxbin\\tests ${WORKSPACE} && \
+                     msbuild ALL_BUILD.vcxproj -p:Configuration=Release && \
+                     ctest.exe -V -C Release"
             }
         }
     }
@@ -200,9 +206,12 @@ def win2016DebugCrossCompile() {
         node('SGXFLC-Windows') {
             cleanWs()
             checkout scm
-            dir('build') {
+            dir('build/X64-Debug') {
                 withEnv(["CC=cl.exe","CXX=cl.exe"]) {
-                    bat "vcvars64.bat x64 && cmake.exe -G Ninja -DCMAKE_BUILD_TYPE=Debug -DBUILD_ENCLAVES=1 .. && ninja.exe && ctest.exe -V -C Debug"
+                    bat "vcvars64.bat x64 && \
+                         cmake.exe -G Ninja -DCMAKE_BUILD_TYPE=Debug -DBUILD_ENCLAVES=1 ${WORKSPACE} && \
+                         ninja.exe && \
+                         ctest.exe -V -C Debug"
                 }
             }
        }
@@ -214,9 +223,12 @@ def win2016ReleaseCrossCompile() {
         node('SGXFLC-Windows') {
             cleanWs()
             checkout scm
-            dir('build') {
+            dir('build/X64-Release') {
                 withEnv(["CC=cl.exe","CXX=cl.exe"]) {
-                    bat "vcvars64.bat x64 && cmake.exe -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_ENCLAVES=1 .. && ninja.exe && ctest.exe -V -C Release"
+                    bat "vcvars64.bat x64 && \
+                         cmake.exe -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_ENCLAVES=1 ${WORKSPACE} && \
+                         ninja.exe && \
+                         ctest.exe -V -C Release"
                 }
             }
         }
