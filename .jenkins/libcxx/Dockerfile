@@ -1,5 +1,12 @@
 FROM ubuntu:18.04
 
+ARG UNAME
+ARG GNAME
+ARG UID
+ARG GID
+RUN groupadd --gid ${GID} ${GNAME} && \
+    useradd --create-home --uid ${UID} --gid ${GID} --shell /bin/bash ${UNAME}
+
 RUN apt-get update \
     && apt-get -y upgrade \
     && apt-get -y install make build-essential git jq curl ansible
@@ -13,4 +20,3 @@ RUN curl -o microsoft.asc https://packages.microsoft.com/keys/microsoft.asc \
 
 RUN curl -o /usr/bin/oe-engine https://oejenkins.blob.core.windows.net/oejenkins/oe-engine \
     && chmod +x /usr/bin/oe-engine
-RUN useradd --create-home -u 1001 azureuser
