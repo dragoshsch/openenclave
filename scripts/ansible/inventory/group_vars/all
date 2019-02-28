@@ -3,8 +3,8 @@
 
 # Global configs for all the Ansible machines
 
-jenkins_url: "<JENKINS_URL>"
-jenkins_admin_name: "<JENKINS_ADMIN_NAME>"
-jenkins_admin_password: "<JENKINS_ADMIN_PASSWORD>"
+jenkins_url: "{{ lookup('env','JENKINS_URL') }}"
+jenkins_admin_name: "{{ lookup('env','JENKINS_ADMIN_NAME') }}"
+jenkins_admin_password: "{{ lookup('env','JENKINS_ADMIN_PASSWORD') }}"
 ci_team_email: "oeciteam@microsoft.com"
 ci_team_name: "OE CI Team"

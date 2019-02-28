@@ -47,15 +47,11 @@ def registerJenkinsSlaves() {
     def slaves = ["libcxx-xenial-vm.eastus.cloudapp.azure.com", "libcxx-bionic-vm.eastus.cloudapp.azure.com"]
     stage("Register Jenkins slaves") {
             withCredentials([usernamePassword(credentialsId: 'oe-ci',
-                                              passwordVariable: 'JENKINS_PASSWORD',
-                                              usernameVariable: 'JENKINS_USERNAME')]) {
+                                              passwordVariable: 'JENKINS_ADMIN_PASSWORD',
+                                              usernameVariable: 'JENKINS_ADMIN_NAME')]) {
                 azureEnvironment("""echo "[linux-agents]" > scripts/ansible/inventory/hosts
                                     echo ${slaves[0]} >> scripts/ansible/inventory/hosts
                                     #echo ${slaves[1]} >> scripts/ansible/inventory/hosts
-
-                                    sed -i 's@<JENKINS_URL>@http://10.1.0.7:8080@' scripts/ansible/inventory/group_vars/all
-                                    sed -i 's/<JENKINS_ADMIN_NAME>/${JENKINS_USERNAME}/' scripts/ansible/inventory/group_vars/all
-                                    sed -i 's/<JENKINS_ADMIN_PASSWORD>/${JENKINS_PASSWORD}/' scripts/ansible/inventory/group_vars/all
                                     
                                     echo jenkins_agent_label: "hardware" > scripts/ansible/inventory/host_vars/${slaves[0]}
                                     echo jenkins_agent_name: "${slaves[0]}" > scripts/ansible/inventory/host_vars/${slaves[0]}
@@ -67,6 +63,7 @@ def registerJenkinsSlaves() {
                                     chmod 400 id-rsa-oe-test
 
                                     export ANSIBLE_HOST_KEY_CHECKING=False
+                                    export JENKINS_URL="http://10.1.0.7:8080"
                                     ansible-playbook -i scripts/ansible/inventory scripts/ansible/jenkins-setup.yml -vvv --extra-vars="ansible_ssh_private_key_file=id-rsa-oe-test"
                                     """)
             }
@@ -95,6 +92,6 @@ try {
     parallel stepsForParallel
 } finally {
     registerJenkinsSlaves()
-    deleteJenkinsSlaves()
-    deleteRG()
+    // deleteJenkinsSlaves()
+    // deleteRG()
 }
