@@ -1,0 +1,100 @@
+import jenkins.model.Jenkins
+
+def azureEnvironment(String task) {
+    node("nonSGX") {
+        cleanWs()
+        checkout scm
+        def azure_image = docker.build("oetools-deploy", ".jenkins/libcxx" )
+        azure_image.inside {
+            withCredentials([usernamePassword(credentialsId: 'SERVICE_PRINCIPAL_OSTCLAB',
+                                              passwordVariable: 'SERVICE_PRINCIPAL_PASSWORD',
+                                              usernameVariable: 'SERVICE_PRINCIPAL_ID'),
+                             string(credentialsId: 'OSCTLabSubID', variable: 'SUBSCRIPTION_ID'),
+                             string(credentialsId: 'TenantID', variable: 'TENANT_ID')]) {
+                dir("${WORKSPACE}") {
+                    withEnv(["AZURE_CONFIG_DIR=${WORKSPACE}"]) {
+                        sh "az login --service-principal -u ${SERVICE_PRINCIPAL_ID} -p ${SERVICE_PRINCIPAL_PASSWORD} --tenant ${TENANT_ID}"
+                        sh "az account set --subscription ${SUBSCRIPTION_ID}"
+                        sh """${task}"""
+                    }
+                }
+            }
+        }
+    }
+}
+
+def deleteRG() {
+    stage("Deleting Resource group oe-libcxx-${BUILD_NUMBER}") {
+        azureEnvironment("az group delete --name oe-libcxx-${BUILD_NUMBER} --yes --no-wait")
+    }
+}
+
+def ACCDeployVM(String version) {
+    return {
+        stage("Deploy ${version}") {
+            azureEnvironment("""SSH_PUB_KEY="\$(az keyvault secret show --vault-name oe-ci-test-kv --name id-rsa-oe-test-pub | jq -r .value | base64 -d)"
+                                jq --arg SSH_PUB_KEY "\$SSH_PUB_KEY" '.properties.linuxProfile.sshPublicKeys[0] += {"keyData": \$SSH_PUB_KEY}' .jenkins/libcxx/${version}.json | jq . > ${version}-final.json
+                                oe-engine generate --api-model ${version}-final.json
+                                az group create --name "oe-libcxx-${BUILD_NUMBER}" --location eastus
+                                az group deployment create -n ${version} -g "oe-libcxx-${BUILD_NUMBER}" --template-file _output/azuredeploy.json --parameters @_output/azuredeploy.parameters.json
+                                """)
+        }
+    }
+}
+
+
+def registerJenkinsSlaves() {
+    def slaves = ["libcxx-xenial-vm.eastus.cloudapp.azure.com", "libcxx-bionic-vm.eastus.cloudapp.azure.com"]
+    stage("Register Jenkins slaves") {
+            withCredentials([usernamePassword(credentialsId: 'oe-ci',
+                                              passwordVariable: 'JENKINS_PASSWORD',
+                                              usernameVariable: 'JENKINS_USERNAME')]) {
+                azureEnvironment("""echo "[linux-agents]" > scripts/ansible/inventory/hosts
+                                    echo ${slaves[0]} >> scripts/ansible/inventory/hosts
+                                    #echo ${slaves[1]} >> scripts/ansible/inventory/hosts
+
+                                    sed -i 's@<JENKINS_URL>@http://10.1.0.7:8080@' scripts/ansible/inventory/group_vars/all
+                                    sed -i 's/<JENKINS_ADMIN_NAME>/${JENKINS_USERNAME}/' scripts/ansible/inventory/group_vars/all
+                                    sed -i 's/<JENKINS_ADMIN_PASSWORD>/${JENKINS_PASSWORD}/' scripts/ansible/inventory/group_vars/all
+                                    
+                                    echo jenkins_agent_label: "hardware" > scripts/ansible/inventory/host_vars/${slaves[0]}
+                                    echo jenkins_agent_name: "${slaves[0]}" > scripts/ansible/inventory/host_vars/${slaves[0]}
+                                    
+                                    #echo jenkins_agent_label: "hardware" > scripts/ansible/inventory/host_vars/${slaves[1]}
+                                    #echo jenkins_agent_name: "${slaves[1]}" > scripts/ansible/inventory/host_vars/${slaves[1]}
+
+                                    az keyvault secret show --vault-name oe-ci-test-kv --name id-rsa-oe-test | jq -r .value | base64 -d > id-rsa-oe-test
+                                    chmod 400 id-rsa-oe-test
+
+                                    export ANSIBLE_HOST_KEY_CHECKING=False
+                                    ansible-playbook -i scripts/ansible/inventory scripts/ansible/jenkins-setup.yml -vvv --extra-vars="ansible_ssh_private_key_file=id-rsa-oe-test"
+                                    """)
+            }
+    }
+}
+
+def deleteJenkinsSlaves() {
+    stage("Delete Jenkins slaves") {
+        Jenkins.instance.nodes.each { slave ->
+            if (slave.name in slaves) {
+                println "Deleting slave $slave.name"
+                Jenkins.instance.removeNode(slave)
+            }
+        }
+    }
+}
+
+// def testVersions = ["ubuntu-16.04", "ubuntu-18.04"]
+def testVersions = ["ubuntu-16.04"]
+
+def stepsForParallel = testVersions.collectEntries { version ->
+    ["Deploying  ${version}" : ACCDeployVM(version)]
+}
+
+try {
+    parallel stepsForParallel
+} finally {
+    registerJenkinsSlaves()
+    deleteJenkinsSlaves()
+    deleteRG()
+}
