@@ -116,7 +116,7 @@ def checkDevFlows(String version) {
 
                     dir('build') {
                         sh """
-                        cmake ${WORKSPACE} -G Ninja -DUSE_LIBSGX=OFF ${cmakeCheckFlags}
+                        cmake ${WORKSPACE} -G Ninja -DUSE_LIBSGX=OFF ${cmakeCheckFlags} -Werror=dev
                         ninja -v
                         """
                         // Note that `make package` is not expected to work
